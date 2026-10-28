@@ -7,3 +7,46 @@
  * The `to_char` function can be used to achieve the correct formatting of your percentage.
  * See: <https://www.postgresql.org/docs/current/functions-formatting.html#FUNCTIONS-FORMATTING-EXAMPLES-TABLE>
  */
+
+
+SELECT
+    rank,
+    title,
+    revenue,
+    "total revenue",
+    CASE
+        WHEN 100.0 * "total revenue" / SUM(revenue) OVER () < 10
+            THEN TO_CHAR(
+                100.0 * "total revenue" / SUM(revenue) OVER (),
+                'FM00.00'
+            )
+        ELSE TO_CHAR(
+            100.0 * "total revenue" / SUM(revenue) OVER (),
+            'FM990.00'
+        )
+    END AS "percent revenue"
+FROM (
+    SELECT
+        RANK() OVER (ORDER BY revenue DESC) AS rank,
+        title,
+        revenue,
+        SUM(revenue) OVER (
+            ORDER BY revenue DESC
+        ) AS "total revenue"
+    FROM (
+        SELECT
+            f.film_id,
+            f.title,
+            COALESCE(SUM(p.amount), 0.00::numeric) AS revenue
+        FROM film f
+        LEFT JOIN inventory i
+            ON f.film_id = i.film_id
+        LEFT JOIN rental r
+            ON i.inventory_id = r.inventory_id
+        LEFT JOIN payment p
+            ON r.rental_id = p.rental_id
+        GROUP BY f.film_id, f.title
+    ) AS film_revenue
+) AS ranked_films
+ORDER BY revenue DESC, title ASC;
+
